@@ -21,14 +21,21 @@ const contactRoutes = require('./routes/contactRoutes');
 const Car = require('./models/Car');
 const User = require('./models/User');
 const { seedCars } = require('./utils/seedData');
+const { getApiLandingHtml } = require('./utils/apiLandingPage');
 
 const app = express();
 
 // Security and utility middlewares
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+  })
+);
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: process.env.CLIENT_URL
+      ? [process.env.CLIENT_URL, 'http://localhost:5173', 'http://localhost:5001']
+      : true,
     credentials: true,
   })
 );
@@ -38,6 +45,32 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
+
+// Health Check for Render Cloud & Ping
+app.head('/', (req, res) => res.status(200).end());
+
+// Root Landing Page (Renders interactive HTML console in browser, JSON for API tools)
+app.get('/', (req, res) => {
+  if (req.accepts('json') && !req.accepts('html')) {
+    return res.status(200).json({
+      application: 'DriveEase — Car Rental Management System',
+      status: 'online',
+      message: 'DriveEase Backend API Engine is active and running on Render',
+      database: 'Connected to MongoDB Atlas',
+      endpoints: {
+        cars: '/api/cars',
+        health: '/api/health',
+        metadata: '/api',
+        auth: '/api/auth/login',
+        bookingsQuote: '/api/bookings/quote',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  res.setHeader('Content-Type', 'text/html');
+  return res.status(200).send(getApiLandingHtml());
+});
 
 // Root API & Health Check Information
 app.get('/api', (req, res) => {
